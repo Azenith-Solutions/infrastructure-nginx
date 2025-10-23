@@ -12,7 +12,7 @@ jobs:
       contents: read
       packages: write             # permite push para GHCR
     env:
-      IMAGE: ghcr.io/ORG/nginx
+      IMAGE: ghcr.io/azenith-solutions/nginx
       TAG: ${{ github.sha }}      
 
     steps:
@@ -56,16 +56,15 @@ jobs:
             echo IMAGE_TAG=${{ env.TAG }} > .env
 
             # Autentica no GHCR para poder "pull"
-            docker login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.TOKEN_GIT }}"
+            echo "${{ secrets.TOKEN_GIT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
             # Puxa a imagem do commit e sobe/atualiza o container
             docker compose --env-file .env pull
             docker compose --env-file .env up -d
 
             # Valida configuração e aplica reload (sem derrubar)
-            docker exec edge nginx -t
-            docker exec edge nginx -s reload || true
+            docker exec nginx nginx -t
+            docker exec nginx nginx -s reload || true
 
             # Limpa imagens antigas
             docker image prune -f
-            
