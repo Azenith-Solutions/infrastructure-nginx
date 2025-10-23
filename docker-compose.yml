@@ -1,14 +1,14 @@
 name: hardwaretech
 services:
-  nginx-lb:
-    image: nginx:alpine
+  nginx:
+    image: ghcr.io/ORG/nginx:${IMAGE_TAG}
     ports:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./logs:/var/log/nginx
+      - /opt/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - /opt/nginx/conf.d:/etc/nginx/conf.d:ro
+      - /opt/nginx/logs:/var/log/nginx
     environment:
       - FRONTEND_CATALOG_HOST=hardwaretech-frontend-catalog-1
       - FRONTEND_MANAGER_SYSTEM_HOST=hardwaretech-frontend-manager-1
