@@ -25,7 +25,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.TOKEN_GIT }}
 
       - name: Build & Push
         uses: docker/build-push-action@v6
@@ -56,7 +56,7 @@ jobs:
             echo IMAGE_TAG=${{ env.TAG }} > .env
 
             # Autentica no GHCR para poder "pull"
-            docker login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.GITHUB_TOKEN }}"
+            docker login ghcr.io -u "${{ github.actor }}" -p "${{ secrets.TOKEN_GIT }}"
 
             # Puxa a imagem do commit e sobe/atualiza o container
             docker compose --env-file .env pull
