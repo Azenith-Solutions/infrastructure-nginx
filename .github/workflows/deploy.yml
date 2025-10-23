@@ -68,3 +68,4 @@ jobs:
 
             # Limpa imagens antigas
             docker image prune -f
+            
