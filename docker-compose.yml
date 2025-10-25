@@ -9,19 +9,9 @@ services:
       - /opt/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - /opt/nginx/conf.d:/etc/nginx/conf.d:ro
       - /opt/nginx/logs:/var/log/nginx
-    environment:
-      - FRONTEND_CATALOG_HOST=hardwaretech-frontend-catalog-1
-      - FRONTEND_MANAGER_SYSTEM_HOST=hardwaretech-frontend-manager-1
-      # - BACKEND_API_HOST=${BACKEND_API_HOST}
-    networks:
-      - hardwaretech-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "nginx", "-t"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-networks:
-  hardwaretech-network:
-    external: true
