@@ -35,6 +35,11 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}:${{ env.TAG }}
 
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> ~/.ssh/known_hosts
+
       - name: Copy configuration files
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -81,5 +86,9 @@ jobs:
             
             # Limpa imagens antigas
             docker image prune -f
+
+            #Limpa known_hosts da virtual machine para validacao a cada deploy
+            ssh-keygen -R ${{ secrets.SERVER_IP }} || true
+
 
 
