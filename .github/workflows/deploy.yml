@@ -86,9 +86,3 @@ jobs:
             
             # Limpa imagens antigas
             docker image prune -f
-
-            #Limpa known_hosts da virtual machine para validacao a cada deploy
-            ssh-keygen -R ${{ secrets.SERVER_IP }} || true
-
-
-
