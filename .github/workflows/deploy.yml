@@ -50,8 +50,7 @@ jobs:
             set -euo pipefail
 
             # Diretórios padrão no servidor
-            sudo mkdir -p /opt/nginx/{conf.d,logs}
-            sudo chown -R $USER:$USER /opt/nginx
+            mkdir -p /opt/nginx/{conf.d,logs}
 
             # Grava a TAG do commit num .env consumido pelo docker-compose
             cd /opt/nginx
