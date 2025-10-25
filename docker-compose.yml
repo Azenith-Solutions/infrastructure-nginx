@@ -1,7 +1,7 @@
 name: hardwaretech
 services:
   nginx:
-    image: ghcr.io/ORG/nginx:${IMAGE_TAG}
+    image: ghcr.io/azenith-solutions/nginx:${IMAGE_TAG}
     ports:
       - "80:80"
       - "443:443"
