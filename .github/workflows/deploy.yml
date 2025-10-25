@@ -40,7 +40,16 @@ jobs:
           mkdir -p ~/.ssh
           ssh-keyscan -H "${{ secrets.SERVER_IP }}" >> ~/.ssh/known_hosts
 
-      - name: Deploy over SSH
+      - name: Copy docker-compose.yml
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_IP }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker-compose.yml"
+          target: "/opt/nginx/"
+
+      - name: Deploy
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SERVER_IP }}      
@@ -60,8 +69,8 @@ jobs:
             echo "${{ secrets.TOKEN_GIT }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
             # Puxa a imagem do commit e sobe/atualiza o container
-            docker compose --env-file .env pull
-            docker compose --env-file .env up -d
+            docker compose pull
+            docker compose up -d
 
             # Valida configuração e aplica reload (sem derrubar)
             docker exec nginx nginx -t
