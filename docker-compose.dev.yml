@@ -1,29 +1,240 @@
 name: hardwaretech-dev
+
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  HardwareTech — Ambiente de Desenvolvimento Completo            ║
+# ║  Orquestrador central: sobe toda a stack via Nginx              ║
+# ║                                                                  ║
+# ║  Uso: docker compose -f docker-compose.dev.yml up --build       ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
 services:
+
+  # ─────────────────── Infraestrutura ────────────────────────────
+
+  mysql-dev:
+    image: mysql:8.0
+    container_name: hardwaretech-mysql-dev
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: "H@RDW@RETECH123"
+      MYSQL_DATABASE: db_hardwaretech_local
+      MYSQL_ROOT_HOST: "%"
+    volumes:
+      - mysql-dev-data:/var/lib/mysql
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pH@RDW@RETECH123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    command: --default-authentication-plugin=mysql_native_password --bind-address=0.0.0.0
+
+  rabbitmq-dev:
+    image: rabbitmq:3-management
+    container_name: hardwaretech-rabbitmq-dev
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: admin123
+    volumes:
+      - rabbitmq-dev-data:/var/lib/rabbitmq
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis-dev:
+    image: redis:7-alpine
+    container_name: hardwaretech-redis-dev
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-dev-data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ─────────────────── Backend ───────────────────────────────────
+
+  backend-api:
+    build:
+      context: ../backend-api-rest
+      dockerfile: Dockerfile.dev
+    container_name: hardwaretech-api-dev
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - ../backend-api-rest/.env.development
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      ORDER_SERVICE_URL: http://order-microservice:8082
+    volumes:
+      - backend-uploads:/app/uploads
+    networks:
+      internal:
+        aliases:
+          - backend-api
+    depends_on:
+      mysql-dev:
+        condition: service_healthy
+      rabbitmq-dev:
+        condition: service_healthy
+      redis-dev:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  order-microservice:
+    build:
+      context: ../order-microservice-api
+      dockerfile: Dockerfile.dev
+    container_name: hardwaretech-order-dev
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    env_file:
+      - ../order-microservice-api/.env.development
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+    networks:
+      internal:
+        aliases:
+          - order-microservice
+    depends_on:
+      mysql-dev:
+        condition: service_healthy
+      rabbitmq-dev:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ─────────────────── Frontends ─────────────────────────────────
+
+  frontend-catalog:
+    build:
+      context: ../frontend-website-catalog-app
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL_BASE: /api/v2
+    container_name: hardwaretech-catalog-dev
+    restart: unless-stopped
+    networks:
+      internal:
+        aliases:
+          - frontend-catalog
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  frontend-manager-system:
+    build:
+      context: ../frontend-manager-app
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL_BASE: /api/v2
+    container_name: hardwaretech-manager-dev
+    restart: unless-stopped
+    networks:
+      internal:
+        aliases:
+          - frontend-manager-system
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:81/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  frontend-mobile-app:
+    build:
+      context: ../frontend-mobile-app
+      dockerfile: Dockerfile
+    container_name: hardwaretech-mobile-dev
+    restart: unless-stopped
+    networks:
+      internal:
+        aliases:
+          - frontend-mobile-app
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ─────────────────── Reverse Proxy ─────────────────────────────
+
   nginx:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: hardwaretech-nginx-dev
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./conf.d/main.conf:/etc/nginx/conf.d/main.conf:ro
-      - ./conf.d/upstream.conf:/etc/nginx/conf.d/upstream.conf:ro
+      - ./conf.dev/main.conf:/etc/nginx/conf.d/main.conf:ro
+      - ./conf.dev/upstream.conf:/etc/nginx/conf.d/upstream.conf:ro
       - ./logs:/var/log/nginx
     restart: unless-stopped
     networks:
-      - hardwaretech-network
+      - internal
+    depends_on:
+      backend-api:
+        condition: service_healthy
+      frontend-catalog:
+        condition: service_healthy
+      frontend-manager-system:
+        condition: service_healthy
+      frontend-mobile-app:
+        condition: service_healthy
     command: sh -c "rm -f /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"
     healthcheck:
-      test: ["CMD", "nginx", "-t"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/nginx-health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
 networks:
-  hardwaretech-network:
+  internal:
     driver: bridge
-    name: hardwaretech-network
-    external: true
+
+volumes:
+  mysql-dev-data:
+  rabbitmq-dev-data:
+  redis-dev-data:
+  backend-uploads:
