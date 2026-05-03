@@ -1,7 +1,5 @@
 # HardwareTech — Guia de Provisionamento do Ambiente de Dev
 
-Este guia orienta a equipe sobre como subir o ambiente de desenvolvimento completo da HardwareTech, utilizando o Nginx como orquestrador central de todos os containers. A topologia local espelha o layout de produção no servidor.
-
 ---
 
 ## Pré-requisitos
@@ -16,50 +14,62 @@ Este guia orienta a equipe sobre como subir o ambiente de desenvolvimento comple
 
 ---
 
-## Estrutura do ambiente
+## O que sobe com esse ambiente
 
 ```
-http://localhost/             → Site institucional (catálogo)
-http://localhost/manager/     → Sistema de gerenciamento
-http://localhost/app/         → App mobile (versão web)
+http://localhost/             → Catálogo (site público)
+http://localhost/manager/     → Sistema de gerenciamento (admin)
+http://localhost/app/         → App mobile (versão web, abre no browser)
 http://localhost/api/v2/      → Backend API REST
-http://localhost/ai/          → AI Chatbot Service (FastAPI + LangGraph)
+http://localhost/ai/          → AI Chatbot Service
 http://localhost:5678         → N8N (automação de workflows)
-http://localhost:15672        → RabbitMQ Management (admin/admin123)
-http://localhost:3306         → MySQL (root/H@RDW@RETECH123)
+http://localhost:8081         → Expo Metro Server (QR code para testar no celular)
+http://localhost:15672        → RabbitMQ (admin / admin123)
+http://localhost:3306         → MySQL (root / H@RDW@RETECH123)
 http://localhost:6379         → Redis
 ```
 
-### Diagrama de serviços
+### Como o tráfego flui
 
 ```
-                             ┌──────────────────┐
-                             │   Nginx (:80)    │
-                             └────────┬─────────┘
-          ┌──────────┬───────┬────────┼────────┬──────────┐
-          ▼          ▼       ▼        ▼        ▼          │
-     /         /manager/ /app/   /api/v2/    /ai/         │
-┌─────────┐ ┌───────┐ ┌───────┐ ┌────────┐ ┌──────────┐  │
-│Catálogo │ │Manager│ │Mobile │ │Backend │ │AI Chatbot│  │
-│  :80    │ │  :81  │ │  :80  │ │  :8080 │ │  :8000   │  │
-└─────────┘ └───────┘ └───────┘ └───┬────┘ └──────────┘  │
-                                    │                     │
-                           ┌────────┘                     │
-                           ▼                              │
-                     ┌───────────┐                        │
-                     │  Order    │                        │
-                     │ Micro :82 │                        │
-                     └─────┬─────┘                        │
-                           │                              │
-          ┌────────────────┼──────────────────────────────┘
-          ▼                ▼                  ▼
-    ┌──────────┐    ┌───────────┐        ┌───────┐
-    │  MySQL   │    │ RabbitMQ  │        │ Redis │
-    │  :3306   │    │  :5672    │        │ :6379 │
-    └──────────┘    └───────────┘        └───────┘
+                         ┌──────────────────┐
+                         │   Nginx (:80)    │
+                         └────────┬─────────┘
+       ┌──────────┬───────┬───────┼────────┬──────────┐
+       ▼          ▼       ▼       ▼        ▼          │
+  /         /manager/ /app/  /api/v2/    /ai/         │
+┌───────┐ ┌───────┐ ┌─────┐ ┌───────┐ ┌──────────┐   │
+│Catál. │ │Manager│ │Mobi.│ │Backend│ │AI Chatbot│   │
+└───────┘ └───────┘ └─────┘ └───┬───┘ └──────────┘   │
+                                │                     │
+                         ┌──────┘                     │
+                         ▼                            │
+                   ┌───────────┐                      │
+                   │  Order    │                      │
+                   │ Micro :82 │                      │
+                   └─────┬─────┘                      │
+                         │                            │
+        ┌────────────────┼────────────────────────────┘
+        ▼                ▼               ▼
+  ┌──────────┐    ┌───────────┐    ┌───────┐
+  │  MySQL   │    │ RabbitMQ  │    │ Redis │
+  └──────────┘    └───────────┘    └───────┘
 
-N8N (:5678) — acesso direto, não passa pelo Nginx
+Expo Metro Server (:8081) — independente do Nginx, acesso via Expo Go no celular
+N8N (:5678)               — independente do Nginx, acesso direto pelo browser
 ```
+
+---
+
+## Dev vs Prod — o que muda no mobile
+
+O app mobile existe em dois formatos distintos, e cada ambiente usa um deles:
+
+**No browser (dev e prod):** O Expo exporta o app como site estático. O Nginx serve em `/app/`. Funciona em qualquer browser, inclusive no celular — mas sem acesso a recursos nativos como câmera.
+
+**No celular como app nativo:**
+- **Dev →** Expo Go + tunnel. O servidor Metro roda no container, gera um QR code. Você escaneia com o Expo Go e o app carrega ao vivo com hot reload. Ideal para testar câmera, QR code, etc.
+- **Prod →** App instalado via App Store / Play Store, gerado com `eas build`. Sem Expo Go, sem servidor — o app já está compilado no celular e chama a API de produção diretamente.
 
 ---
 
@@ -67,7 +77,7 @@ N8N (:5678) — acesso direto, não passa pelo Nginx
 
 ### 1. Clonar os repositórios
 
-Todos os projetos devem estar na mesma pasta pai, lado a lado:
+Todos os projetos devem estar na mesma pasta pai:
 
 ```bash
 mkdir -p ~/projetos/hardwaretech && cd ~/projetos/hardwaretech
@@ -81,8 +91,6 @@ git clone git@github.com:Azenith-Solutions/ai-chatbot-service.git
 git clone git@github.com:Azenith-Solutions/n8n.git
 git clone git@github.com:Azenith-Solutions/infrastructure-nginx.git
 ```
-
-A estrutura deve ficar assim:
 
 ```
 hardwaretech/
@@ -98,129 +106,101 @@ hardwaretech/
 
 ### 2. Configurar variáveis de ambiente
 
-Os backends precisam de arquivos `.env.development` para funcionar. Cada projeto já possui um `.env.example` como referência.
+#### infrastructure-nginx (orquestrador)
 
 ```bash
-# Backend API REST
+cd infrastructure-nginx
+cp .env.example .env
+```
+
+Edite `.env`:
+
+```env
+# IP da sua máquina na rede local
+# Linux:  ip route get 1 | awk '{print $7; exit}'
+# macOS:  ipconfig getifaddr en0
+HOST_IP=192.168.x.x
+
+# Token do Expo para o tunnel (expo.dev → Account Settings → Access Tokens)
+EXPO_TOKEN=seu_token_aqui
+```
+
+> O `HOST_IP` é necessário para que o celular (via Expo Go) saiba onde está a API. O `EXPO_TOKEN` permite que o tunnel do Expo funcione sem login interativo dentro do container.
+
+#### Backend API REST
+
+```bash
 cp backend-api-rest/.env.example backend-api-rest/.env.development
 ```
 
+Preencha `backend-api-rest/.env.development`:
+
+```env
+DB_URL=jdbc:mysql://mysql-dev:3306/db_hardwaretech_local
+DB_USERNAME=root
+DB_PASSWORD=H@RDW@RETECH123
+DB_DRIVER=com.mysql.cj.jdbc.Driver
+
+RABBITMQ_HOST=rabbitmq-dev
+RABBITMQ_PORT=5672
+RABBITMQ_USERNAME=admin
+RABBITMQ_PASSWORD=admin123
+
+CACHE_HOST=redis-dev
+CACHE_PORT=6379
+
+ORDER_SERVICE_URL=http://order-microservice:8082
+
+ORDER_CREATE_EXCHANGE=order.exchange
+ORDER_CREATE_QUEUE=order.queue
+ORDER_ROUTING_KEY=order.create
+ORDER_DLX=order.dlx
+ORDER_DLQ=order.dlq
+
+ORDER_CREATED_EXCHANGE=order.created.exchange
+ORDER_CREATED_QUEUE=order.created.queue
+ORDER_CREATED_ROUTING_KEY=order.created
+ORDER_CREATED_DLX=order.created.dlx
+ORDER_CREATED_DLQ=order.created.dlq
+
+JWT_SECRET=sptech
+BREVO_API_KEY=
+BREVO_API_URL=
+GEMINI_API_KEY=
+GEMINI_API_URL=
+```
+
+#### Order Microservice
+
 ```bash
-# AI Chatbot Service (obrigatório: LLM_API_KEY)
+cp order-microservice-api/.env.example order-microservice-api/.env.development
+```
+
+Preencha com os mesmos valores de banco, RabbitMQ, Redis e mensageria do backend acima.
+
+#### AI Chatbot Service
+
+```bash
 cp ai-chatbot-service/.env.example ai-chatbot-service/.env
 ```
 
-Edite `ai-chatbot-service/.env` com sua chave de LLM (padrão: Gemini):
+Preencha a chave do LLM (padrão: Gemini):
 
 ```env
 LLM_PROVIDER=gemini/gemini-2.0-flash
 LLM_API_KEY=AIzaSy...sua-chave-aqui...
-# DB_URL é sobrescrito automaticamente pelo docker-compose para apontar ao container MySQL
 ```
 
-> **N8N**: após subir o ambiente, acesse `http://localhost:5678` e reconfigure as credenciais MySQL via interface (use os valores do container: host `mysql-dev`, porta `3306`, banco `db_hardwaretech_local`, usuário `root`). Importe o workflow em `n8n/workflow-update-metals-prices.json` via _Settings → Import workflow_.
+> Os frontends web (catálogo, manager) **não precisam de `.env`** — a URL da API é injetada como build arg no docker-compose.
 
-
-Edite `backend-api-rest/.env.development` com os seguintes valores para apontar para os containers:
-
-```env
-# Database
-DB_URL=jdbc:mysql://mysql-dev:3306/db_hardwaretech_local
-DB_USERNAME=root
-DB_PASSWORD=H@RDW@RETECH123
-DB_DRIVER=com.mysql.cj.jdbc.Driver
-
-# RabbitMQ
-RABBITMQ_HOST=rabbitmq-dev
-RABBITMQ_PORT=5672
-RABBITMQ_USERNAME=admin
-RABBITMQ_PASSWORD=admin123
-
-# Redis
-CACHE_HOST=redis-dev
-CACHE_PORT=6379
-
-# Order Microservice (sobrescrito pelo compose, mas manter como fallback)
-ORDER_SERVICE_URL=http://order-microservice:8082
-
-# Messaging - Order Command (backend -> order-microservice)
-ORDER_CREATE_EXCHANGE=order.exchange
-ORDER_CREATE_QUEUE=order.queue
-ORDER_ROUTING_KEY=order.create
-ORDER_DLX=order.dlx
-ORDER_DLQ=order.dlq
-
-# Messaging - Order Created Event (order-microservice -> backend)
-ORDER_CREATED_EXCHANGE=order.created.exchange
-ORDER_CREATED_QUEUE=order.created.queue
-ORDER_CREATED_ROUTING_KEY=order.created
-ORDER_CREATED_DLX=order.created.dlx
-ORDER_CREATED_DLQ=order.created.dlq
-
-# JWT
-JWT_SECRET=sptech
-
-# Brevo (deixar vazio para dev local)
-BREVO_API_KEY=
-BREVO_API_URL=
-
-# Gemini (deixar vazio para dev local ou preencher com sua key)
-GEMINI_API_KEY=
-GEMINI_API_URL=
-```
+#### N8N
 
 ```bash
-# Order Microservice
-cp order-microservice-api/.env.example order-microservice-api/.env.development
+cd n8n
+cp credentials-mysql.example.json credentials-mysql.json
 ```
 
-Edite `order-microservice-api/.env.development` com os mesmos hostnames de container:
-
-```env
-# Database
-DB_URL=jdbc:mysql://mysql-dev:3306/db_hardwaretech_local
-DB_USERNAME=root
-DB_PASSWORD=H@RDW@RETECH123
-DB_DRIVER=com.mysql.cj.jdbc.Driver
-
-# RabbitMQ
-RABBITMQ_HOST=rabbitmq-dev
-RABBITMQ_PORT=5672
-RABBITMQ_USERNAME=admin
-RABBITMQ_PASSWORD=admin123
-
-# Redis
-CACHE_HOST=redis-dev
-CACHE_PORT=6379
-
-# Messaging - Order Command
-ORDER_CREATE_EXCHANGE=order.exchange
-ORDER_CREATE_QUEUE=order.queue
-ORDER_CREATE_ROUTING_KEY=order.create
-ORDER_ROUTING_KEY=order.create
-ORDER_DLX=order.dlx
-ORDER_DLQ=order.dlq
-
-# Messaging - Order Created Event
-ORDER_CREATED_EXCHANGE=order.created.exchange
-ORDER_CREATED_QUEUE=order.created.queue
-ORDER_CREATED_ROUTING_KEY=order.created
-ORDER_CREATED_DLX=order.created.dlx
-ORDER_CREATED_DLQ=order.created.dlq
-
-# JWT
-JWT_SECRET=sptech
-
-# Brevo
-BREVO_API_KEY=
-BREVO_API_URL=
-
-# Gemini
-GEMINI_API_KEY=
-GEMINI_API_URL=
-```
-
-> **Os frontends NÃO precisam de `.env`** para o ambiente orquestrado. O `VITE_API_URL_BASE=/api/v2` já é injetado como build arg no docker-compose, fazendo com que as chamadas à API passem pelo Nginx.
+Substitua `SUBSTITUA_PELA_SENHA_DO_BANCO` por `H@RDW@RETECH123` no arquivo. Após subir o ambiente, importe as credenciais e o workflow pela interface em `http://localhost:5678`.
 
 ### 3. Subir o ambiente
 
@@ -229,41 +209,56 @@ cd infrastructure-nginx
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-O primeiro build leva alguns minutos (download de imagens + compilação Maven + build React). Builds seguintes são mais rápidos graças ao cache de camadas do Docker.
+O primeiro build leva alguns minutos. Os seguintes são mais rápidos graças ao cache do Docker.
 
-#### Ordem de inicialização (automática via `depends_on`)
+#### Ordem de inicialização (automática)
 
 ```
-1. mysql-dev, rabbitmq-dev, redis-dev     (infra — sem dependências)
-2. backend-api, order-microservice         (aguardam infra ficar healthy)
-3. frontend-catalog, frontend-manager,     (build paralelo, sem deps de runtime)
-   frontend-mobile-app
-4. nginx                                    (aguarda backends + frontends healthy)
+1. MySQL, RabbitMQ, Redis          → infra base
+2. Backend API, Order Microservice → aguardam a infra ficar healthy
+3. Frontends, AI Chatbot, N8N      → build paralelo
+4. Expo Metro Server               → sobe junto, inicia o tunnel
+5. Nginx                           → último, aguarda todos os serviços healthy
 ```
 
-### 4. Verificar se está tudo rodando
+### 4. Testar no celular com Expo Go
+
+Instale o **Expo Go** no celular (App Store / Play Store).
+
+Após o ambiente subir, veja o QR code nos logs do servidor Expo:
 
 ```bash
-# Status dos containers
+docker logs -f hardwaretech-mobile-expo
+```
+
+Aguarde aparecer algo assim:
+
+```
+› Metro waiting on exp+hardwaretech://expo-development-client/...
+› Scan the QR code above with Expo Go (Android) or the Camera app (iOS)
+```
+
+Escaneie o QR code. O app abre no Expo Go com hot reload — qualquer alteração no código reflete imediatamente no celular sem rebuild.
+
+### 5. Verificar se está tudo rodando
+
+```bash
 docker compose -f docker-compose.dev.yml ps
 
-# Health check do Nginx
-curl http://localhost/nginx-health
-
-# Testar cada rota
-curl -I http://localhost/                 # Catálogo
-curl -I http://localhost/manager/         # Manager
-curl -I http://localhost/app/             # Mobile web
-curl -I http://localhost/api/v2/          # Backend API (esperar 401 ou 200 dependendo do endpoint)
+curl http://localhost/nginx-health   # deve retornar "nginx ok"
+curl -I http://localhost/            # Catálogo
+curl -I http://localhost/manager/    # Manager
+curl -I http://localhost/app/        # Mobile web
+curl -I http://localhost/api/v2/categorys  # API (200 ou 401)
 ```
 
-### 5. Parar o ambiente
+### 6. Parar o ambiente
 
 ```bash
-# Parar e manter volumes (dados do MySQL, Redis, RabbitMQ persistem)
+# Para e mantém os dados (MySQL, Redis, RabbitMQ)
 docker compose -f docker-compose.dev.yml down
 
-# Parar e apagar TUDO (inclusive dados)
+# Para e apaga tudo, inclusive banco de dados
 docker compose -f docker-compose.dev.yml down -v
 ```
 
@@ -273,11 +268,13 @@ docker compose -f docker-compose.dev.yml down -v
 
 | Ação | Comando |
 |---|---|
-| Ver logs de um serviço | `docker compose -f docker-compose.dev.yml logs -f backend-api` |
-| Rebuild de um serviço só | `docker compose -f docker-compose.dev.yml up --build frontend-catalog` |
+| Ver QR code do Expo | `docker logs -f hardwaretech-mobile-expo` |
+| Ver logs de qualquer serviço | `docker compose -f docker-compose.dev.yml logs -f <serviço>` |
+| Rebuild de um serviço específico | `docker compose -f docker-compose.dev.yml up --build <serviço>` |
 | Entrar no container | `docker compose -f docker-compose.dev.yml exec backend-api sh` |
 | Acessar MySQL via CLI | `docker compose -f docker-compose.dev.yml exec mysql-dev mysql -u root -p'H@RDW@RETECH123' db_hardwaretech_local` |
-| Ver filas no RabbitMQ | Abrir `http://localhost:15672` (admin / admin123) |
+| Rodar seed de dados mockados | `docker compose -f docker-compose.dev.yml exec mysql-dev mysql -u root -p'H@RDW@RETECH123' db_hardwaretech_local < seed.sql` |
+| Ver filas no RabbitMQ | `http://localhost:15672` (admin / admin123) |
 | Limpar cache do Docker | `docker builder prune -f` |
 
 ---
@@ -286,31 +283,29 @@ docker compose -f docker-compose.dev.yml down -v
 
 ### Portas em uso
 
-Se a porta 80 (ou outra) já estiver ocupada:
-
 ```bash
-# Descobrir o processo
-sudo lsof -i :80
-
-# Parar o serviço (exemplo: Apache)
-sudo systemctl stop apache2
+sudo lsof -i :80    # descobrir o processo
+sudo systemctl stop apache2  # exemplo para liberar a porta 80
 ```
 
 ### Backend não conecta no MySQL
 
-O MySQL leva ~30s para ficar healthy. O `depends_on` com `condition: service_healthy` garante que o backend só inicia após o MySQL estar pronto. Se mesmo assim falhar:
+O MySQL leva ~30s para ficar healthy. O `depends_on` garante a ordem certa. Se mesmo assim falhar:
 
 ```bash
-# Verificar se o MySQL está healthy
-docker compose -f docker-compose.dev.yml ps mysql-dev
-
-# Ver logs do MySQL
 docker compose -f docker-compose.dev.yml logs mysql-dev
+docker compose -f docker-compose.dev.yml ps mysql-dev
 ```
 
-### Rebuild limpo (nuclear)
+### Expo não gera QR code / tunnel falha
 
-Se algo estiver inconsistente:
+Verifique se o `EXPO_TOKEN` está preenchido no `.env` do `infrastructure-nginx`. Sem ele, o Expo tenta fazer login interativo e trava.
+
+```bash
+docker logs hardwaretech-mobile-expo 2>&1 | head -30
+```
+
+### Rebuild limpo
 
 ```bash
 docker compose -f docker-compose.dev.yml down -v
@@ -318,38 +313,17 @@ docker system prune -f
 docker compose -f docker-compose.dev.yml up --build --force-recreate
 ```
 
-### Mobile App — base path `/app/`
-
-A versão web do mobile app é servida sob `/app/` pelo Nginx. Se assets (JS, CSS, imagens) retornarem 404, pode ser necessário configurar o base path no Expo. No `app.json`, adicione:
-
-```json
-{
-  "expo": {
-    "web": {
-      "bundler": "metro",
-      "output": "static",
-      "baseUrl": "/app"
-    }
-  }
-}
-```
-
-E rebuild o container:
-
-```bash
-docker compose -f docker-compose.dev.yml up --build frontend-mobile-app
-```
-
 ---
 
-## Diferenças entre Dev e Prod
+## Dev vs Prod — resumo técnico
 
-| Aspecto | Dev (este compose) | Prod |
+| | Dev | Prod |
 |---|---|---|
-| Rede | `internal` (bridge local) | `hardwaretech-network` (externa) |
-| MySQL | Container local | Servidor dedicado |
-| Imagens | Build local (Dockerfile.dev) | GHCR (imagens pré-built) |
-| Nginx upstream | 1 instância do backend | Load balanced (2+ instâncias) |
-| HTTPS | Sem TLS | TLS com certificado |
-| Mobile app | Rota `/app/` no Nginx | Porta 82 direta |
-| Volumes | Docker volumes locais | Bind mounts no servidor |
+| **Web (browser)** | `http://localhost/` via Nginx | `https://dominio.com/` via Nginx + TLS |
+| **Mobile no browser** | `http://localhost/app/` via Nginx | `https://dominio.com/app/` via Nginx + TLS |
+| **Mobile nativo** | Expo Go + QR code (Metro Server) | App instalado via App Store / Play Store (`eas build`) |
+| **API no mobile nativo** | `http://[HOST_IP]/api/v2` (rede local) | `https://api.dominio.com/api/v2` (HTTPS) |
+| **Atualização do app nativo** | Hot reload imediato | `eas update` (OTA) ou nova versão na loja |
+| **MySQL** | Container local | Servidor dedicado |
+| **Imagens Docker** | Build local | GHCR (imagens pré-built) |
+| **Nginx upstream** | 1 instância do backend | Load balanced (2+ instâncias) |
