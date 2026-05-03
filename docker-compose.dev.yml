@@ -152,7 +152,7 @@ services:
     env_file:
       - ../ai-chatbot-service/.env
     environment:
-      - DB_URL=mysql+pymysql://root:H@RDW@RETECH123@mysql-dev:3306/db_hardwaretech_local
+      - DB_URL=mysql+pymysql://root:H%40RDW%40RETECH123@mysql-dev:3306/db_hardwaretech_local
     networks:
       internal:
         aliases:
@@ -161,7 +161,7 @@ services:
       mysql-dev:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8000/health"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
