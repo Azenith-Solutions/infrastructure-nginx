@@ -284,6 +284,30 @@ services:
       timeout: 10s
       retries: 3
 
+  # ─────────────────── Expo Dev (tunnel para teste no celular) ──────
+  # Não sobe com 'docker compose up' normal — requer profile explícito:
+  #   docker compose -f docker-compose.dev.yml --profile expo up frontend-mobile-expo
+  # Após subir: docker logs -f hardwaretech-mobile-expo (QR code aparece aqui)
+  # Pré-requisito: EXPO_TOKEN e HOST_IP definidos no .env deste diretório.
+
+  frontend-mobile-expo:
+    build:
+      context: ../frontend-mobile-app
+      dockerfile: Dockerfile.dev
+    container_name: hardwaretech-mobile-expo
+    restart: unless-stopped
+    environment:
+      - EXPO_TOKEN=${EXPO_TOKEN}
+      - EXPO_PUBLIC_API_URL=http://${HOST_IP}/api/v2
+      - EXPO_PUBLIC_AI_API_URL=http://${HOST_IP}/ai
+    volumes:
+      - ../frontend-mobile-app:/app
+      - mobile-expo-modules:/app/node_modules
+    networks:
+      - internal
+    profiles:
+      - expo
+
 networks:
   internal:
     driver: bridge
@@ -294,3 +318,4 @@ volumes:
   redis-dev-data:
   backend-uploads:
   n8n-dev-data:
+  mobile-expo-modules:
