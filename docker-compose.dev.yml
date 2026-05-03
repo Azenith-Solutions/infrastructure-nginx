@@ -284,9 +284,8 @@ services:
       timeout: 10s
       retries: 3
 
-  # ─────────────────── Expo Dev (tunnel para teste no celular) ──────
-  # Não sobe com 'docker compose up' normal — requer profile explícito:
-  #   docker compose -f docker-compose.dev.yml --profile expo up frontend-mobile-expo
+  # ─────────────────── Expo Dev (servidor nativo para teste no celular) ─
+  # Servidor Metro independente do nginx — expõe as portas do Expo diretamente.
   # Após subir: docker logs -f hardwaretech-mobile-expo (QR code aparece aqui)
   # Pré-requisito: EXPO_TOKEN e HOST_IP definidos no .env deste diretório.
 
@@ -296,6 +295,11 @@ services:
       dockerfile: Dockerfile.dev
     container_name: hardwaretech-mobile-expo
     restart: unless-stopped
+    ports:
+      - "8081:8081"
+      - "19000:19000"
+      - "19001:19001"
+      - "19002:19002"
     environment:
       - EXPO_TOKEN=${EXPO_TOKEN}
       - EXPO_PUBLIC_API_URL=http://${HOST_IP}/api/v2
@@ -305,8 +309,6 @@ services:
       - mobile-expo-modules:/app/node_modules
     networks:
       - internal
-    profiles:
-      - expo
 
 networks:
   internal:
