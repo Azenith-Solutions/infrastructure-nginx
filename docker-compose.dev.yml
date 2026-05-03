@@ -234,6 +234,8 @@ services:
     build:
       context: ../frontend-mobile-app
       dockerfile: Dockerfile
+      args:
+        EXPO_PUBLIC_API_URL: /api/v2
     container_name: hardwaretech-mobile-dev
     restart: unless-stopped
     networks:
