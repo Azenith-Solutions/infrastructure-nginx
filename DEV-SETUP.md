@@ -23,6 +23,8 @@ http://localhost/             → Site institucional (catálogo)
 http://localhost/manager/     → Sistema de gerenciamento
 http://localhost/app/         → App mobile (versão web)
 http://localhost/api/v2/      → Backend API REST
+http://localhost/ai/          → AI Chatbot Service (FastAPI + LangGraph)
+http://localhost:5678         → N8N (automação de workflows)
 http://localhost:15672        → RabbitMQ Management (admin/admin123)
 http://localhost:3306         → MySQL (root/H@RDW@RETECH123)
 http://localhost:6379         → Redis
@@ -31,30 +33,32 @@ http://localhost:6379         → Redis
 ### Diagrama de serviços
 
 ```
-                          ┌──────────────────┐
-                          │   Nginx (:80)    │
-                          └────────┬─────────┘
-               ┌──────────┬───────┼────────┬──────────┐
-               ▼          ▼       ▼        ▼          │
-          /            /manager/  /app/   /api/v2/     │
-     ┌─────────┐  ┌─────────┐ ┌───────┐ ┌──────────┐ │
-     │ Catálogo│  │ Manager │ │Mobile │ │ Backend  │ │
-     │  :80    │  │  :81    │ │ :80   │ │  :8080   │ │
-     └─────────┘  └─────────┘ └───────┘ └────┬─────┘ │
-                                              │       │
-                                     ┌────────┘       │
-                                     ▼                │
-                               ┌───────────┐          │
-                               │  Order    │          │
-                               │ Micro :82 │          │
-                               └─────┬─────┘          │
-                                     │                │
-                    ┌────────────────┼────────────────┘
-                    ▼                ▼
-              ┌──────────┐    ┌───────────┐   ┌───────┐
-              │ MySQL    │    │ RabbitMQ  │   │ Redis │
-              │  :3306   │    │  :5672    │   │ :6379 │
-              └──────────┘    └───────────┘   └───────┘
+                             ┌──────────────────┐
+                             │   Nginx (:80)    │
+                             └────────┬─────────┘
+          ┌──────────┬───────┬────────┼────────┬──────────┐
+          ▼          ▼       ▼        ▼        ▼          │
+     /         /manager/ /app/   /api/v2/    /ai/         │
+┌─────────┐ ┌───────┐ ┌───────┐ ┌────────┐ ┌──────────┐  │
+│Catálogo │ │Manager│ │Mobile │ │Backend │ │AI Chatbot│  │
+│  :80    │ │  :81  │ │  :80  │ │  :8080 │ │  :8000   │  │
+└─────────┘ └───────┘ └───────┘ └───┬────┘ └──────────┘  │
+                                    │                     │
+                           ┌────────┘                     │
+                           ▼                              │
+                     ┌───────────┐                        │
+                     │  Order    │                        │
+                     │ Micro :82 │                        │
+                     └─────┬─────┘                        │
+                           │                              │
+          ┌────────────────┼──────────────────────────────┘
+          ▼                ▼                  ▼
+    ┌──────────┐    ┌───────────┐        ┌───────┐
+    │  MySQL   │    │ RabbitMQ  │        │ Redis │
+    │  :3306   │    │  :5672    │        │ :6379 │
+    └──────────┘    └───────────┘        └───────┘
+
+N8N (:5678) — acesso direto, não passa pelo Nginx
 ```
 
 ---
@@ -68,12 +72,14 @@ Todos os projetos devem estar na mesma pasta pai, lado a lado:
 ```bash
 mkdir -p ~/projetos/hardwaretech && cd ~/projetos/hardwaretech
 
-git clone <url>/backend-api-rest.git
-git clone <url>/order-microservice-api.git
-git clone <url>/frontend-website-catalog-app.git
-git clone <url>/frontend-manager-app.git
-git clone <url>/frontend-mobile-app.git
-git clone <url>/infrastructure-nginx.git
+git clone git@github.com:Azenith-Solutions/backend-api-rest.git
+git clone git@github.com:Azenith-Solutions/order-microservice-api.git
+git clone git@github.com:Azenith-Solutions/frontend-website-catalog-app.git
+git clone git@github.com:Azenith-Solutions/frontend-manager-app.git
+git clone git@github.com:Azenith-Solutions/frontend-mobile-app.git
+git clone git@github.com:Azenith-Solutions/ai-chatbot-service.git
+git clone git@github.com:Azenith-Solutions/n8n.git
+git clone git@github.com:Azenith-Solutions/infrastructure-nginx.git
 ```
 
 A estrutura deve ficar assim:
@@ -85,6 +91,8 @@ hardwaretech/
 ├── frontend-website-catalog-app/
 ├── frontend-manager-app/
 ├── frontend-mobile-app/
+├── ai-chatbot-service/
+├── n8n/
 └── infrastructure-nginx/
 ```
 
@@ -96,6 +104,22 @@ Os backends precisam de arquivos `.env.development` para funcionar. Cada projeto
 # Backend API REST
 cp backend-api-rest/.env.example backend-api-rest/.env.development
 ```
+
+```bash
+# AI Chatbot Service (obrigatório: LLM_API_KEY)
+cp ai-chatbot-service/.env.example ai-chatbot-service/.env
+```
+
+Edite `ai-chatbot-service/.env` com sua chave de LLM (padrão: Gemini):
+
+```env
+LLM_PROVIDER=gemini/gemini-2.0-flash
+LLM_API_KEY=AIzaSy...sua-chave-aqui...
+# DB_URL é sobrescrito automaticamente pelo docker-compose para apontar ao container MySQL
+```
+
+> **N8N**: após subir o ambiente, acesse `http://localhost:5678` e reconfigure as credenciais MySQL via interface (use os valores do container: host `mysql-dev`, porta `3306`, banco `db_hardwaretech_local`, usuário `root`). Importe o workflow em `n8n/workflow-update-metals-prices.json` via _Settings → Import workflow_.
+
 
 Edite `backend-api-rest/.env.development` com os seguintes valores para apontar para os containers:
 
