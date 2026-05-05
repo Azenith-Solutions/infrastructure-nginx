@@ -1,7 +1,6 @@
 #!/bin/sh
 
 CONTAINER="hardwaretech-mobile-expo"
-ENV_FILE="$(dirname "$0")/.env"
 
 if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
   echo "Container '${CONTAINER}' não está rodando."
@@ -9,24 +8,13 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
   exit 1
 fi
 
-HOST_IP=$(grep '^HOST_IP=' "$ENV_FILE" 2>/dev/null | cut -d'=' -f2 | tr -d ' \r')
+echo "Aguardando tunnel do Expo ficar pronto (pode levar ~30s)..."
 
-if [ -z "$HOST_IP" ]; then
-  echo "HOST_IP não encontrado em .env. Preencha o arquivo .env antes de continuar."
-  exit 1
-fi
-
-EXPO_URL="exp://${HOST_IP}:8081"
-BUNDLE_URL="http://localhost:8081/node_modules/expo-router/entry.bundle?platform=android&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app"
-
-echo "Aguardando Metro Bundler ficar pronto..."
-until docker logs "$CONTAINER" 2>&1 | grep -q "Waiting on"; do
-  sleep 2
+EXPO_URL=""
+while [ -z "$EXPO_URL" ]; do
+  EXPO_URL=$(docker logs "$CONTAINER" 2>&1 | grep -o 'exp://[^ ]*' | head -1)
+  [ -z "$EXPO_URL" ] && sleep 3
 done
-
-echo "Pré-compilando bundle nativo (aguarde, isso evita timeout no Expo Go)..."
-curl -s --max-time 120 "$BUNDLE_URL" -o /dev/null
-echo "Bundle pronto."
 
 echo ""
 echo "================================================================"
