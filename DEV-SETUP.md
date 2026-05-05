@@ -305,6 +305,20 @@ Verifique se o `EXPO_TOKEN` está preenchido no `.env` do `infrastructure-nginx`
 docker logs hardwaretech-mobile-expo 2>&1 | head -30
 ```
 
+### Dependências do Expo desatualizadas após rebuild
+
+O container Expo usa um **volume nomeado** (`mobile-expo-modules`) para persistir o `node_modules` entre reinicializações — isso acelera o startup. O tradeoff é que o Docker **não atualiza o volume automaticamente** quando a imagem é reconstruída com `--build`.
+
+Para garantir que o volume reflita o `package.json` atual (ex: após adicionar ou remover pacotes), destrua o volume e recrie:
+
+```bash
+docker compose -f docker-compose.dev.yml down
+docker volume rm hardwaretech-dev_mobile-expo-modules
+docker compose -f docker-compose.dev.yml up --build frontend-mobile-expo
+```
+
+> O `entrypoint.dev.sh` do container já roda `npm install` automaticamente na inicialização, então após a recriação do volume as dependências são sempre instaladas frescas.
+
 ### Rebuild limpo
 
 ```bash
