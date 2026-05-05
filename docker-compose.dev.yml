@@ -284,6 +284,7 @@ services:
       - EXPO_TOKEN=${EXPO_TOKEN}
       - EXPO_PUBLIC_API_URL=http://${HOST_IP}/api/v2
       - EXPO_PUBLIC_AI_API_URL=http://${HOST_IP}/ai/v2
+      - REACT_NATIVE_PACKAGER_HOSTNAME=${HOST_IP}
     volumes:
       - ../frontend-mobile-app:/app
       - mobile-expo-modules:/app/node_modules

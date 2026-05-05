@@ -8,13 +8,6 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
   exit 1
 fi
 
-echo "Aguardando Metro Bundler ficar pronto..."
-docker logs -f "$CONTAINER" 2>&1 | while IFS= read -r line; do
-  echo "$line"
-  case "$line" in
-    *"Waiting on"*|*"scan"*|*"Scan"*) break ;;
-  esac
-done
-
+echo "Aguardando Metro Bundler ficar pronto... (Ctrl+C para sair)"
 echo ""
-echo "QR code gerado acima. Abra o Expo Go no celular e escaneie."
+docker logs --tail 0 -f "$CONTAINER" 2>&1
