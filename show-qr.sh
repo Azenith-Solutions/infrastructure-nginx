@@ -24,7 +24,29 @@ until docker logs "$CONTAINER" 2>&1 | grep -q "Waiting on"; do
 done
 
 echo ""
-echo "Abra o Expo Go e escaneie:"
-echo "$EXPO_URL"
+echo "================================================================"
+echo "  Expo Go  →  $EXPO_URL"
+echo "  (ou abra o Expo Go e digite a URL acima manualmente)"
+echo "================================================================"
 echo ""
-npx --yes qrcode-terminal "$EXPO_URL"
+
+if python3 -c "import qrcode" 2>/dev/null; then
+  python3 - "$EXPO_URL" <<'EOF'
+import sys, qrcode
+qr = qrcode.QRCode(border=2)
+qr.add_data(sys.argv[1])
+qr.make(fit=True)
+qr.print_ascii(invert=True)
+EOF
+elif pip3 install --quiet qrcode 2>/dev/null; then
+  python3 - "$EXPO_URL" <<'EOF'
+import sys, qrcode
+qr = qrcode.QRCode(border=2)
+qr.add_data(sys.argv[1])
+qr.make(fit=True)
+qr.print_ascii(invert=True)
+EOF
+else
+  echo "Instale o Python qrcode para gerar o QR code: pip3 install qrcode"
+  echo "Ou acesse manualmente pelo Expo Go digitando a URL acima."
+fi
