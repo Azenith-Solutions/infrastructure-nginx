@@ -10,4 +10,4 @@ fi
 
 echo "Aguardando Metro Bundler ficar pronto... (Ctrl+C para sair)"
 echo ""
-docker logs --tail 0 -f "$CONTAINER" 2>&1
+docker logs --tail 100 -f "$CONTAINER" 2>&1
