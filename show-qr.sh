@@ -9,12 +9,16 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
 fi
 
 echo "Aguardando tunnel do Expo ficar pronto (pode levar ~30s)..."
-
-EXPO_URL=""
-while [ -z "$EXPO_URL" ]; do
-  EXPO_URL=$(docker logs "$CONTAINER" 2>&1 | grep -o 'exp://[^ ]*' | head -1)
-  [ -z "$EXPO_URL" ] && sleep 3
+until docker logs "$CONTAINER" 2>&1 | grep -q "Tunnel ready"; do
+  sleep 3
 done
+
+HOST_URI=$(curl -s http://localhost:8081/ \
+  -H "Accept: application/json" \
+  -H "Expo-Platform: ios" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['extra']['expoClient']['hostUri'])")
+
+EXPO_URL="exp://${HOST_URI}"
 
 echo ""
 echo "================================================================"
