@@ -167,28 +167,8 @@ services:
       retries: 3
       start_period: 30s
 
-  n8n:
-    image: n8nio/n8n:latest
-    container_name: hardwaretech-n8n-dev
-    restart: unless-stopped
-    ports:
-      - "5678:5678"
-    environment:
-      - GENERIC_TIMEZONE=America/Sao_Paulo
-      - TZ=America/Sao_Paulo
-      - N8N_SECURE_COOKIE=false
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - WEBHOOK_URL=http://localhost:5678/
-      - NODE_OPTIONS=--dns-result-order=ipv4first
-    volumes:
-      - n8n-dev-data:/home/node/.n8n
-    networks:
-      - internal
-    depends_on:
-      mysql-dev:
-        condition: service_healthy
+  # n8n removido desta stack — usar o container standalone hardwaretech-n8n (porta 5678)
+  # que já está conectado às redes hardwaretech-dev_internal e hardwaretech-network.
 
   # ─────────────────── Frontends ─────────────────────────────────
 
@@ -303,7 +283,7 @@ services:
     environment:
       - EXPO_TOKEN=${EXPO_TOKEN}
       - EXPO_PUBLIC_API_URL=http://${HOST_IP}/api/v2
-      - EXPO_PUBLIC_AI_API_URL=http://${HOST_IP}/ai
+      - EXPO_PUBLIC_AI_API_URL=http://${HOST_IP}/ai/v2
     volumes:
       - ../frontend-mobile-app:/app
       - mobile-expo-modules:/app/node_modules
