@@ -73,6 +73,42 @@ O app mobile existe em dois formatos distintos, e cada ambiente usa um deles:
 
 ---
 
+## Situação do seu ambiente — por onde começar
+
+Antes de qualquer coisa, identifique em qual situação você está:
+
+---
+
+### Situação A — Primeira vez (ambiente zerado)
+
+Siga o passo a passo completo abaixo a partir da seção **1. Clonar os repositórios**.
+
+---
+
+### Situação B — Já tem containers de versões anteriores
+
+Se você já subiu o ambiente antes das correções do Expo (maio/2026), o volume de `node_modules` do container Expo está desatualizado. Rode:
+
+```bash
+cd infrastructure-nginx
+docker compose -f docker-compose.dev.yml down
+docker volume rm hardwaretech-dev_mobile-expo-modules
+docker compose -f docker-compose.dev.yml up --build -d
+```
+
+---
+
+### Situação C — Ambiente parcialmente rodando
+
+Alguns containers estão de pé mas outros não. O comando abaixo sobe o que está faltando sem derrubar o que já está:
+
+```bash
+cd infrastructure-nginx
+docker compose -f docker-compose.dev.yml up --build -d
+```
+
+---
+
 ## Passo a passo
 
 ### 1. Clonar os repositórios
@@ -225,20 +261,16 @@ O primeiro build leva alguns minutos. Os seguintes são mais rápidos graças ao
 
 Instale o **Expo Go** no celular (App Store / Play Store).
 
-Após o ambiente subir, veja o QR code nos logs do servidor Expo:
+Após o ambiente subir, gere o QR code com o script disponível no repositório:
 
 ```bash
-docker logs -f hardwaretech-mobile-expo
+cd infrastructure-nginx
+./show-qr.sh
 ```
 
-Aguarde aparecer algo assim:
+O script aguarda o Metro Bundler ficar pronto e exibe o QR code no terminal. Escaneie com o Expo Go — o app abre ao vivo com hot reload, qualquer alteração no código reflete imediatamente no celular sem rebuild.
 
-```
-› Metro waiting on exp+hardwaretech://expo-development-client/...
-› Scan the QR code above with Expo Go (Android) or the Camera app (iOS)
-```
-
-Escaneie o QR code. O app abre no Expo Go com hot reload — qualquer alteração no código reflete imediatamente no celular sem rebuild.
+> Se preferir acompanhar todos os logs do container: `docker logs -f hardwaretech-mobile-expo`
 
 ### 5. Verificar se está tudo rodando
 
